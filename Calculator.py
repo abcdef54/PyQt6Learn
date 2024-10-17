@@ -134,12 +134,15 @@ class Calcu(QWidget):
 
     
     
-    def button_clicked(self) -> None:
-        sender = self.sender()
-        if not sender:
-            return
+    def button_clicked(self, in_sender_text: str = "") -> None:
+        if not in_sender_text:
+            sender = self.sender()
+            if not sender:
+                return
+            sender_text = sender.text()
+        else:
+            sender_text = in_sender_text
         
-        sender_text = sender.text()
         self.remove_error_text()
         
         if sender_text in '1234567890π()':
@@ -164,6 +167,10 @@ class Calcu(QWidget):
             self.turn_first_number_negative()
         
         elif sender_text == 'Exp':
+            # secret case:
+            if self.text_box.text() == '42069':
+                self.text_box.setText("Whatssup")
+                return
             self.text_box.setText("Feature Not Implemented")
         
         return
@@ -196,12 +203,7 @@ class Calcu(QWidget):
     def handle_equal_operator(self) -> None:
         if self.text_box_is_empty() or self._text_box_is_default():
                 return
-            
-        # secret case:
-        if self.text_box.text() == '42069':
-            self.text_box.setText("Whatssup")
-            return
-        
+
         try:
             if self.text_box.text()[-1] in '+-*/%':
                 text = self.text_box.text()[:-1]
@@ -214,6 +216,7 @@ class Calcu(QWidget):
             
             text = self.format_to_eval(text)
             result = eval(text)
+                
             self.text_box.setText(f"{result:,}")
         
         except ZeroDivisionError:
@@ -281,8 +284,13 @@ class Calcu(QWidget):
     
     
     def _valid_parentheses(self, text: str) -> bool:
+        length = len(text)
+        for index, char in enumerate(text):
+            if index + 1 < length and char == '(':
+                if text[index + 1] == ')':
+                    return False
+        
         open_parentheses = 0
-    
         for char in text:
             if char == '(':
                 open_parentheses += 1
@@ -296,8 +304,9 @@ class Calcu(QWidget):
     
     
     def format_to_eval(self, text: str) -> str:
-        formatted_text = self._format_parentheses(text)
-        formatted_text = self._format_pi(formatted_text)
+        formatted_text = self._format_pi(text)
+        formatted_text = self._format_parentheses(formatted_text)
+        formatted_text = formatted_text.replace(",","")
         return formatted_text
     
     
@@ -324,30 +333,37 @@ class Calcu(QWidget):
                 new_text += char
                 
         return new_text
-                
-                
+            
     
     
     def _format_pi(self, text: str) -> str:
         """
-        Add '*' symbol before 'π' symbols if missing
+        Add '*' symbol before and/or after 'π' symbols if missing,
+        and replace 'π' with its numerical value.
         """
         if 'π' not in text:
             return text
         
         pi = "3.141592"
         new_text = ""
+        
         for index, symbol in enumerate(text):
             if symbol == 'π':
-                # If 'π' is the first character, don't add multiplication before it
-                if index == 0 or text[index - 1] in '+-*/%':
+                before_pi_is_valid = (index == 0 or (index - 1 >= 0 and text[index - 1] in '+-*/%()'))
+                after_pi_is_valid = (index + 1 >= len(text) or (index + 1 < len(text) and text[index + 1] in '+-*/%()π'))
+                
+                if before_pi_is_valid and after_pi_is_valid:
                     new_text += 'π'
-                else:
-                    # Add multiplication before 'π'
+                elif before_pi_is_valid:
+                    new_text += 'π*'
+                elif after_pi_is_valid:
                     new_text += '*π'
+                else:
+                    new_text += '*π*'
+                    
             else:
                 new_text += symbol
-            
+        
         return new_text.replace('π', pi)
     
     
@@ -389,13 +405,13 @@ class Calcu(QWidget):
             self.close()
 
         elif event.key() == Qt.Key.Key_Enter or event.key() == Qt.Key.Key_Return:
-            self.handle_equal_operator()
+            self.button_clicked(in_sender_text='=')
 
         elif event.key() == Qt.Key.Key_Backspace:
-            self.handle_remove_operator()
+            self.button_clicked(in_sender_text='←')
 
         elif event.key() in (Qt.Key.Key_Plus, Qt.Key.Key_Minus, Qt.Key.Key_Asterisk, Qt.Key.Key_Slash, Qt.Key.Key_Percent):
-            self.handle_operators(chr(event.key()))
+            self.button_clicked(in_sender_text = chr(event.key()))
         
         elif event.key() in (Qt.Key.Key_0,
                              Qt.Key.Key_1,
@@ -419,10 +435,13 @@ class Calcu(QWidget):
             Qt.Key.Key_8: '8',
             Qt.Key.Key_9: '9'
             }
-            self.handle_numeric(numeric_key_mapping[event.key()])
+            self.button_clicked(in_sender_text = numeric_key_mapping[event.key()])
 
         elif event.key() == Qt.Key.Key_Period:
-            self.handle_period_symbol()
+            self.button_clicked(in_sender_text= '.')
+            
+        elif event.key() == Qt.Key.Key_C:
+            self.button_clicked(in_sender_text= 'C')
 
 
 if __name__ == '__main__':
