@@ -318,7 +318,7 @@ class Calcu(QWidget):
         new_text = ""
         for index, char in enumerate(text):
             if char == '(':
-                if index > 0 and text[index - 1] not in '+-*/%(':
+                if index > 0 and text[index - 1] not in '+-*/%()':
                     new_text += '*('
                 else:
                     new_text += '('
