@@ -83,9 +83,15 @@ class ImgEditor(QWidget):
     def connect_signals(self) -> None:        
         for item in self.all_variables:
             if item not in (self.img_box, self.filter_list, self.file_list):
+                if item != self.select_button:
+                    item.setEnabled(False)
                 item.clicked.connect(self.buttons_clicked)
+                
             elif item == self.file_list:
                 item.itemClicked.connect(self.buttons_clicked)
+                
+            elif item == self.filter_list:
+                item.currentIndexChanged.connect(self.buttons_clicked)
     
     
     def filter(self, file_names: List[str], extendtions: List[str]) -> List[str]:
@@ -116,6 +122,9 @@ class ImgEditor(QWidget):
             self.editor.load_image(self.file_list.currentItem().text())
             self.editor.show_image()
             
+            for button in self.buttons:
+                button.setEnabled(True)
+            
     
     def buttons_clicked(self) -> None:
         sender = self.sender()
@@ -129,25 +138,29 @@ class ImgEditor(QWidget):
             self.display_image()
         
         elif sender == self.left_button:
-            self.editor.turn_image_left()
+            self.editor.transform_image("Left")
         
         elif sender == self.right_button:
-            self.editor.turn_image_right()
+            self.editor.transform_image("Right")
             
         elif sender == self.mirror_button:
-            self.editor.mirror_image()
+            self.editor.transform_image("Mirror")
             
         elif sender == self.grey_button:
-            self.editor.grey_image()
+            self.editor.transform_image("Grey")
             
         elif sender == self.sharp_button:
-            self.editor.sharpen_image()
+            self.editor.transform_image("Sharpen")
             
         elif sender == self.blur_button:
-            self.editor.blur_image()
+            self.editor.transform_image("Blur")
             
         elif sender == self.contrast_button:
-            self.editor.contrast()
+            self.editor.transform_image("Contrast")
+            
+        elif sender == self.filter_list:
+            if self.file_list.currentRow() >= 0:
+                self.editor.apply_filter(self.filter_list.currentText())
         
         else:
             return
@@ -166,6 +179,15 @@ class Editor:
         self.original = None
         self.save_folder = "Edited/"
         self.parent = parent
+        self.mapping = {
+            "Left" : lambda image: image.transpose(Image.ROTATE_90),
+            "Right" : lambda image: image.transpose(Image.ROTATE_270),
+            "Mirror" : lambda image: image.transpose(Image.FLIP_LEFT_RIGHT),
+            "Grey" : lambda image: image.convert("L"),
+            "Sharpen" : lambda image: image.filter(ImageFilter.SHARPEN),
+            "Blur" : lambda image: image.filter(ImageFilter.BLUR),
+            "Contrast" : lambda image: ImageEnhance.Contrast(image).enhance(1.1)
+        }
         
     
     def load_image(self, file_name: str) -> None:
@@ -195,60 +217,41 @@ class Editor:
         self.image.save(full_path)
         
     
-    def show_image(self) -> None:
+    def show_image(self, path: str = None) -> None:
         if not self._image_loaded():
             raise FileNotFoundError("Image Not Loaded")
+        
+        if not path:
+            path = self.file_path
         
         self.parent.img_box.hide()
         
         QPixmapCache.clear()
-        image = QPixmap(self.file_path)
+        image = QPixmap(path)
         width = self.parent.img_box.width()
         height = self.parent.img_box.height()
         image = image.scaled(width, height, Qt.AspectRatioMode.KeepAspectRatio)
-        
         self.parent.img_box.setPixmap(image)
         self.parent.img_box.show()
+
     
+    def transform_image(self, transfromation: str) -> None:
+        transform_fuc = self.mapping.get(transfromation)
+        if transform_fuc:
+            self.image = transform_fuc(self.image)
+            self.change_image_after_edited()
+            
     
-    def turn_image_left(self) -> None:
-        self.image = self.image.transpose(Image.ROTATE_90)
-        self.change_image_after_edited()
-    
-    
-    def turn_image_right(self) -> None:
-        self.image = self.image.transpose(Image.ROTATE_270)
-        self.change_image_after_edited()
-        
-    
-    def mirror_image(self) -> None:
-        self.image = self.image.transpose(Image.FLIP_LEFT_RIGHT)
-        self.change_image_after_edited()
-        
-        
-    def grey_image(self) -> None:
-        self.image = self.image.convert('L')
-        self.change_image_after_edited()
-        
-    
-    def sharpen_image(self) -> None:
-        self.image = self.image.filter(ImageFilter.SHARPEN)
-        self.change_image_after_edited()
-        
-    
-    def blur_image(self) -> None:
-        self.image = self.image.filter(ImageFilter.BLUR)
-        self.change_image_after_edited()
-        
-    
-    def contrast(self, level: float = 1.1) -> None:
-        self.image = ImageEnhance.Contrast(self.image).enhance(level)
-        self.change_image_after_edited()
-        
-    
-    def color(self, level: float = 1.1) -> None:
-        self.image = ImageEnhance.Color.enhance(level)
-        self.change_image_after_edited()
+    def apply_filter(self, filter_name: str) -> None:
+        if filter_name == "Original":
+            self.image = self.original.copy()
+        else:
+            filter_func = self.mapping.get(filter_name)
+            if filter_func:
+                self.image = filter_func(self.original.copy())
+
+        self.save_image()
+        self.show_image(os.path.join(work_dir, self.save_folder, self.file_name))
     
     
     def _image_loaded(self) -> bool:
