@@ -106,7 +106,7 @@ class WeatherApp(QWidget):
     
     
     def get_weather(self, city_name: str) -> Dict[str, str]:
-        key = "b8c58858a61d2a071525299cd119622f"
+        key = ""
         url = f"https://api.openweathermap.org/data/2.5/weather?q={city_name}&appid={key}"
         try:
             infos = requests.get(url)
